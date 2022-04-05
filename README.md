@@ -15,13 +15,15 @@ python3.10 server.py
 Caution! Do **NOT** run more than instance at once!
 
 
-
+ 
+ 
 Insert values into MajesticBank/__init__.py
 
+```
 API_KEY = ""  # From Telegram Bot
 
 DEFAULT_REFERRAL_CODE = "" # Register on majesticbank website and get from dashboard
-
+```
 
 
 Telegram Botfather commands:
