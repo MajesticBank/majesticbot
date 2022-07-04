@@ -13,7 +13,13 @@ from typing import List
 import telegram
 from PIL import Image
 from telegram import Update
-from telegram.ext import CallbackContext, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
+from telegram.ext import (
+    CallbackContext,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    Filters,
+)
 
 import MajesticBank
 from MajesticBank import Commands, Reply, Style, Conversation
@@ -25,35 +31,71 @@ class Router:
         self.commands = Commands()
 
         start = Command("start", self.commands.start, parameter_counts=[1, 2])
-        help = Command("help", self.commands.help, docs={"description": "List of commands"}, aliases=["support"])
-        rates = Command("rates", self.commands.get_rates, docs={"description": "Current rates on all pairs"})
-        limits = Command("limits", self.commands.get_limits, parameter_counts=[2], docs={
-            "description": "Min & max trade amount for a currency",
-            "usage": "[from currency]",
-            "examples": "BTC",
-        })
-        estimate = Command("estimate", self.commands.calculate_order, aliases=["calculate"], parameter_counts=[1, 4],
-                           docs={
-                               "description": "Estimate a trade",
-                               "usage": "[from amount]? [from currency] [to amount]? [to currency]",
-                               "examples": ["", "1 BTC XMR", "BTC 1 XMR"],
-                           })
-        trade = Command("trade", self.commands.create_order, aliases=["order", "swap"], parameter_counts=[1, 5], docs={
-            "description": "Trade with a floating rate",
-            "usage": "[from amount] [from currency] [to currency] [to currency address]",
-            "examples": ["", "1 XMR BTC bc1..."],
-        })
-        fixed = Command("fixed", self.commands.create_fixed, aliases=["pay"], parameter_counts=[1, 5], docs={
-            "description": "Trade with a fixed rate",
-            "usage": "[from amount]? [from currency] [to amount]? [to currency] [to currency address]",
-            "examples": ["", "1 XMR BTC bc1...", "XMR 0.1 BTC bc1..."],
-        })
-        track = Command("track", self.commands.track, aliases=["trades", "check", "orders"], parameter_counts=[1, 2],
-                        docs={
-                            "description": "Transaction status",
-                            "usage": "[Order#]?",
-                            "examples": ["", "#ABCDEFFG"],
-                        })
+        help = Command(
+            "help",
+            self.commands.help,
+            docs={"description": "List of commands"},
+            aliases=["support"],
+        )
+        rates = Command(
+            "rates",
+            self.commands.get_rates,
+            docs={"description": "Current rates on all pairs"},
+        )
+        limits = Command(
+            "limits",
+            self.commands.get_limits,
+            parameter_counts=[2],
+            docs={
+                "description": "Min & max trade amount for a currency",
+                "usage": "[from currency]",
+                "examples": "BTC",
+            },
+        )
+        estimate = Command(
+            "estimate",
+            self.commands.calculate_order,
+            aliases=["calculate"],
+            parameter_counts=[1, 4],
+            docs={
+                "description": "Estimate a trade",
+                "usage": "[from amount]? [from currency] [to amount]? [to currency]",
+                "examples": ["", "1 BTC XMR", "BTC 1 XMR"],
+            },
+        )
+        trade = Command(
+            "trade",
+            self.commands.create_order,
+            aliases=["order", "swap"],
+            parameter_counts=[1, 5],
+            docs={
+                "description": "Trade with a floating rate",
+                "usage": "[from amount] [from currency] [to currency] [to currency address]",
+                "examples": ["", "1 XMR BTC bc1..."],
+            },
+        )
+        fixed = Command(
+            "fixed",
+            self.commands.create_fixed,
+            aliases=["pay"],
+            parameter_counts=[1, 5],
+            docs={
+                "description": "Trade with a fixed rate",
+                "usage": "[from amount]? [from currency] [to amount]? [to currency] [to currency address]",
+                "examples": ["", "1 XMR BTC bc1...", "XMR 0.1 BTC bc1..."],
+            },
+        )
+        track = Command(
+            "track",
+            self.commands.track,
+            aliases=["trades", "check", "orders"],
+            parameter_counts=[1, 2],
+            docs={
+                "description": "Transaction status",
+                "usage": "[Order#]?",
+                "examples": ["", "#ABCDEFFG"],
+            },
+        )
 
         self.commands_assignment = {
             "start": start,
@@ -76,6 +118,7 @@ class Router:
 
             if command.aliases:
                 for alias in command.aliases:
+
                     def command_interceptor(update: Update, context: CallbackContext):
                         return self.command_handler(alias, update, context)
 
@@ -85,28 +128,36 @@ class Router:
         dispatcher.add_handler(CallbackQueryHandler(self.callback_handler))
 
         # handle non commands & conversations & messages
-        dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, self.message_handler))
+        dispatcher.add_handler(
+            MessageHandler(Filters.text & ~Filters.command, self.message_handler)
+        )
 
         # photo handler
         dispatcher.add_handler(MessageHandler(Filters.photo, self.photo_handler))
 
         # handle invalid commands
-        dispatcher.add_handler(MessageHandler(Filters.text & Filters.command, self.invalid_router))
+        dispatcher.add_handler(
+            MessageHandler(Filters.text & Filters.command, self.invalid_router)
+        )
 
         # handle errors
         dispatcher.add_error_handler(self.error_router)
 
-        self.commands.set_commands_assignment(self.commands_assignment, self.get_all_commands_help())
+        self.commands.set_commands_assignment(
+            self.commands_assignment, self.get_all_commands_help()
+        )
 
         # register conversations
         self.trade_conversation = Conversation.trade_conversation
-        trade_path_entry_regex = fr"^ */?({trade.name_and_aliases_regex()}|{fixed.name_and_aliases_regex()})$"
+        trade_path_entry_regex = rf"^ */?({trade.name_and_aliases_regex()}|{fixed.name_and_aliases_regex()})$"
         self.trade_conversation.add_entry_regex(trade_path_entry_regex)
         Conversation.PATHS[Conversation.PATH_TRADE]["regex"] = trade_path_entry_regex
 
-        estimate_path_entry_regex = fr"^ */?({estimate.name_and_aliases_regex()})$"
+        estimate_path_entry_regex = rf"^ */?({estimate.name_and_aliases_regex()})$"
         self.trade_conversation.add_entry_regex(estimate_path_entry_regex)
-        Conversation.PATHS[Conversation.PATH_ESTIMATE]["regex"] = estimate_path_entry_regex
+        Conversation.PATHS[Conversation.PATH_ESTIMATE][
+            "regex"
+        ] = estimate_path_entry_regex
 
     def send_typing(self, chat_id):
         bot = telegram.Bot(MajesticBank.API_KEY)
@@ -118,29 +169,32 @@ class Router:
             return [""]
 
         # remove emoji from start of string
-        emoji_pattern = re.compile("["
-                                   u"\U0001F600-\U0001F64F"  # emoticons
-                                   u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-                                   u"\U0001F680-\U0001F6FF"  # transport & map symbols
-                                   u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                                   u"\U00002500-\U00002BEF"  # chinese char
-                                   u"\U00002702-\U000027B0"
-                                   u"\U00002702-\U000027B0"
-                                   u"\U000024C2-\U0001F251"
-                                   u"\U0001f926-\U0001f937"
-                                   u"\U00010000-\U0010ffff"
-                                   u"\u2640-\u2642"
-                                   u"\u2600-\u2B55"
-                                   u"\u200d"
-                                   u"\u23cf"
-                                   u"\u23e9"
-                                   u"\u231a"
-                                   u"\ufe0f"  # dingbats
-                                   u"\u3030"
-                                   "]+", re.UNICODE)
-        text = re.sub(emoji_pattern, '', text)
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map symbols
+            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+            "\U00002500-\U00002BEF"  # chinese char
+            "\U00002702-\U000027B0"
+            "\U00002702-\U000027B0"
+            "\U000024C2-\U0001F251"
+            "\U0001f926-\U0001f937"
+            "\U00010000-\U0010ffff"
+            "\u2640-\u2642"
+            "\u2600-\u2B55"
+            "\u200d"
+            "\u23cf"
+            "\u23e9"
+            "\u231a"
+            "\ufe0f"  # dingbats
+            "\u3030"
+            "]+",
+            re.UNICODE,
+        )
+        text = re.sub(emoji_pattern, "", text)
 
-        # string whitespace at string start
+        # strip whitespace at string start
         text = text.lstrip()
 
         # split into list
@@ -181,7 +235,9 @@ class Router:
 
         return self.router(callback_message, context)
 
-    def command_handler(self, command: str, update: Update, context: CallbackContext) -> int | None:
+    def command_handler(
+        self, command: str, update: Update, context: CallbackContext
+    ) -> int | None:
         context.user_data["chat_id"] = update.message.chat_id
         message = update.message.text
 
@@ -251,7 +307,10 @@ class Router:
         self.send_typing(chat_id)
 
         command_obj = self.get_command_by_name(params[0])
-        if command_obj.parameter_counts and len(params) not in command_obj.parameter_counts:
+        if (
+            command_obj.parameter_counts
+            and len(params) not in command_obj.parameter_counts
+        ):
             # if invalid parameter count
             reply = Reply(command_obj.get_command_help())
             reply.send(chat_id)

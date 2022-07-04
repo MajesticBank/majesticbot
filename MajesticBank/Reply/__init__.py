@@ -14,7 +14,9 @@ import MajesticBank
 
 
 class Reply:
-    def __init__(self, html_reply: str = None, photo=None, reply_markup=None, state=None):
+    def __init__(
+        self, html_reply: str = None, photo=None, reply_markup=None, state=None
+    ):
         self.html_reply = html_reply
         self.photo = photo
         self.reply_markup = reply_markup
@@ -27,12 +29,20 @@ class Reply:
             with io.BytesIO() as output:
                 self.photo.save(output, format="PNG")
                 contents = output.getvalue()
-                self.bot.send_photo(photo=contents, chat_id=chat_id, caption=self.html_reply,
-                                    reply_markup=self.reply_markup,
-                                    parse_mode="HTML")
+                self.bot.send_photo(
+                    photo=contents,
+                    chat_id=chat_id,
+                    caption=self.html_reply,
+                    reply_markup=self.reply_markup,
+                    parse_mode="HTML",
+                )
         else:
-            self.bot.send_message(chat_id=chat_id, text=self.html_reply, reply_markup=self.reply_markup,
-                                  parse_mode="HTML")
+            self.bot.send_message(
+                chat_id=chat_id,
+                text=self.html_reply,
+                reply_markup=self.reply_markup,
+                parse_mode="HTML",
+            )
 
     def set_reply_keyboard(self, rows: list = ReplyKeyboardRemove()):
 
@@ -44,22 +54,25 @@ class Reply:
             keyboard_row = []
             for button in row:
                 if isinstance(button, str):
-                    keyboard_row.append(KeyboardButton(
-                        text=button,
-                    ))
+                    keyboard_row.append(
+                        KeyboardButton(
+                            text=button,
+                        )
+                    )
                 elif isinstance(button, dict):
-                    keyboard_row.append(KeyboardButton(
-                        text=button["text"],
-                    ))
+                    keyboard_row.append(
+                        KeyboardButton(
+                            text=button["text"],
+                        )
+                    )
 
             keyboard.append(keyboard_row)
         self.reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
     def add_navigation_keyboard(self):
-        self.set_reply_keyboard([
-            ["🧮 Estimate", "⚖ Trade"],
-            ["⛑ Help", "🧾 Orders", "📈 Rates"]
-        ])
+        self.set_reply_keyboard(
+            [["🧮 Estimate", "⚖ Trade"], ["⛑ Help", "🧾 Orders", "📈 Rates"]]
+        )
 
     def send_navigation_keyboard_with_message(self, chat_id: int):
         self.html_reply = "Navigate with buttons ↘️"

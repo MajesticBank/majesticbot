@@ -5,30 +5,37 @@ import re
 
 import qrcode
 from PIL import Image
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 from telegram.ext import CallbackContext
 
 import MajesticBank.Style as Style
 from MajesticBank.API import MajesticBankAPI
-from MajesticBank.Decimal import Decimal
+from MajesticBank.Decimal import octa_deci, is_numeric
 from MajesticBank.Orders import MajesticBankOrders
 from MajesticBank.Reply import Reply
 
-API_KEY = ""  # From Telegram Bot
+# API_KEY = "5134897341:AAEeBpjicYa_e4uG2PEmjq6bcBQLZnlJM7s"  # MajesticBank_TESTBOT
+API_KEY = "5212679859:AAFaxTSKUx7itdl2jYr7jeuZNvNHjDhOKQQ"  # MajesticBank_BOT
 
-DEFAULT_REFERRAL_CODE = "" #Register on majesticbank website and get from dashboard
+DEFAULT_REFERRAL_CODE = "mgzySX"
 SUPPORTED_CURRENCIES = ["BTC", "LTC", "XMR"]
-SUPPORTED_CURRENCIES_REGEX = re.compile(f"^({'|'.join(SUPPORTED_CURRENCIES)})$", re.IGNORECASE)
+SUPPORTED_CURRENCIES_REGEX = re.compile(
+    f"^({'|'.join(SUPPORTED_CURRENCIES)})$", re.IGNORECASE
+)
 
 
 class Commands:
-
     def __init__(self, start_updater: bool = True):
         self.supported_currencies = SUPPORTED_CURRENCIES
 
-        currencies_list = '|'.join(self.supported_currencies)
+        currencies_list = "|".join(self.supported_currencies)
         currencies_list = f"^({currencies_list})$"
-        self.currencies_regex = re.compile(f'{currencies_list}', re.IGNORECASE)
+        self.currencies_regex = re.compile(f"{currencies_list}", re.IGNORECASE)
 
         self.API = MajesticBankAPI()
         self.orders = MajesticBankOrders(start_updater=start_updater)
@@ -60,13 +67,13 @@ class Commands:
             try fails -> except executed example:
                 /command BTC 1 XMR
         """
-        if Decimal(params[1]).numeric():
-            params_by_type["numeric"] = Decimal(params[1])
+        if is_numeric(params[1]):
+            params_by_type["numeric"] = octa_deci(params[1])
             params_by_type["numeric_idx"] = 1
             params_by_type["other"] = params[2]
         else:
             params_by_type["other"] = params[1]
-            params_by_type["numeric"] = Decimal(params[2])
+            params_by_type["numeric"] = octa_deci(params[2])
             params_by_type["numeric_idx"] = 2
 
         return params_by_type
@@ -155,9 +162,17 @@ class Commands:
         if len(params) > 1:
             # activated when bot is added via link with trx such as:
             # https://t.me/majesticbank_bot?start=ABCDEF
-            self.orders.insert({"chat_id": context.user_data["chat_id"], "trx": params[1], "status": "Just subscribed"})
-            reply += Style.b('🔔 UPDATES 🔔') + "\n\n"
-            reply += "Subscribed to updates for order: #" + Style.code(params[1]) + "\n\n"
+            self.orders.insert(
+                {
+                    "chat_id": context.user_data["chat_id"],
+                    "trx": params[1],
+                    "status": "Just subscribed",
+                }
+            )
+            reply += Style.b("🔔 UPDATES 🔔") + "\n\n"
+            reply += (
+                "Subscribed to updates for order: #" + Style.code(params[1]) + "\n\n"
+            )
 
         reply_obj = Reply(reply)
         return reply_obj
@@ -166,11 +181,11 @@ class Commands:
         reply = Style.b("ℹ️️ HELP ℹ️️") + "\n\n"
 
         reply += Style.b("🪙 SUPPORTED CURRENCIES 🪙️️") + "\n"
-        reply += ', '.join(self.supported_currencies) + "\n\n"
+        reply += ", ".join(self.supported_currencies) + "\n\n"
 
         reply += self.all_commands_help
 
-        reply += Style.a("⛑️️️ CUSTOMER SUPPORT ⛑", "https://t.me/majesticbank")
+        reply += Style.a("⛑️️️ CUSTOMER SUPPORT ⛑", "https://t.me/majesticsupport")
 
         return Reply(reply)
 
@@ -218,16 +233,22 @@ class Commands:
             from_amount = params_by_type["numeric"]
             from_currency = params_by_type["other"]
 
-            data = self.API.calculate_order(from_currency=from_currency, receive_currency=receive_currency,
-                                            from_amount=from_amount)
+            data = self.API.calculate_order(
+                from_currency=from_currency,
+                receive_currency=receive_currency,
+                from_amount=from_amount,
+            )
             receive_amount = data["receive_amount"]
 
         elif params_by_type["numeric_idx"] == 2:
             from_currency = params_by_type["other"]
             receive_amount = params_by_type["numeric"]
 
-            data = self.API.calculate_order(from_currency=from_currency, receive_currency=receive_currency,
-                                            receive_amount=receive_amount)
+            data = self.API.calculate_order(
+                from_currency=from_currency,
+                receive_currency=receive_currency,
+                receive_amount=receive_amount,
+            )
             from_amount = data["from_amount"]
 
         reply = Style.b("🧮 ESTIMATE 🧮") + "\n\n"
@@ -235,8 +256,9 @@ class Commands:
         rhs = Style.code(f"{receive_amount} {receive_currency}")
         reply += f"{lhs} ➡ {rhs}"
 
-        recheck_button = self.__inline_keyboard_button("🔄 Recheck",
-                                                       f"/estimate {from_amount} {from_currency} {receive_currency}")
+        recheck_button = self.__inline_keyboard_button(
+            "🔄 Recheck", f"/estimate {from_amount} {from_currency} {receive_currency}"
+        )
         keyboard = self.__inline_keyboard([[recheck_button]])
         return Reply(reply, reply_markup=keyboard)
 
@@ -244,14 +266,18 @@ class Commands:
         """
         Expecting: /create_order 1 BTC XMR [Monero_address]
         """
-        from_amount = Decimal(params[1])
+        from_amount = octa_deci(params[1])
         from_currency = params[2]
         receive_currency = params[3]
         receive_address = params[4]
 
-        data = self.API.create_order(from_currency=from_currency, receive_currency=receive_currency,
-                                     from_amount=from_amount, receive_address=receive_address,
-                                     referral_code=self.get_referral_code(context))
+        data = self.API.create_order(
+            from_currency=from_currency,
+            receive_currency=receive_currency,
+            from_amount=from_amount,
+            receive_address=receive_address,
+            referral_code=self.get_referral_code(context),
+        )
         receive_amount = data["receive_amount"]
         trx = data["trx"]
         address = data["address"]
@@ -291,18 +317,26 @@ class Commands:
             from_amount = params_by_type["numeric"]
             from_currency = params_by_type["other"]
 
-            data = self.API.create_fixed(from_currency=from_currency, receive_currency=receive_currency,
-                                         from_amount=from_amount, receive_address=receive_address,
-                                         referral_code=self.get_referral_code(context))
+            data = self.API.create_fixed(
+                from_currency=from_currency,
+                receive_currency=receive_currency,
+                from_amount=from_amount,
+                receive_address=receive_address,
+                referral_code=self.get_referral_code(context),
+            )
             receive_amount = data["receive_amount"]
 
         elif params_by_type["numeric_idx"] == 2:
             from_currency = params_by_type["other"]
             receive_amount = params_by_type["numeric"]
 
-            data = self.API.create_fixed(from_currency=from_currency, receive_currency=receive_currency,
-                                         receive_amount=receive_amount, receive_address=receive_address,
-                                         referral_code=self.get_referral_code(context))
+            data = self.API.create_fixed(
+                from_currency=from_currency,
+                receive_currency=receive_currency,
+                receive_amount=receive_amount,
+                receive_address=receive_address,
+                referral_code=self.get_referral_code(context),
+            )
             from_amount = data["from_amount"]
 
         trx = data["trx"]
