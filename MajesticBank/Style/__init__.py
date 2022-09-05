@@ -3,7 +3,7 @@ This file provider helper function for the styling of HTML messages in Telegram
 """
 from __future__ import annotations
 
-from MajesticBank import Decimal
+from decimal import Decimal
 
 
 def a(text: str, href: str) -> str:

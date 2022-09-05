@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 import logging
 import re
+import traceback
 from re import Pattern
 from typing import List, Dict
 from urllib.parse import urlparse
@@ -16,22 +17,21 @@ from pyzbar.pyzbar import decode
 from telegram.ext import CallbackContext
 
 import MajesticBank
-from MajesticBank import Reply, Decimal, Style
+from MajesticBank import Reply, Style
+from MajesticBank.Decimal import octa_deci, DECIMAL_REGEX
 
 
 class State:
-    def __init__(self,
-                 message: str,
-                 context: CallbackContext,
-
-                 reply_text: str = "",
-                 reply_parameters: list = None,
-
-                 next_state: int = None,
-
-                 response_validation: str | Pattern = None,
-                 response_set_key: str = None,
-                 ):
+    def __init__(
+        self,
+        message: str,
+        context: CallbackContext,
+        reply_text: str = "",
+        reply_parameters: list = None,
+        next_state: int = None,
+        response_validation: str | Pattern = None,
+        response_set_key: str = None,
+    ):
 
         # the message received - reply to the previous state
         self.message = message
@@ -41,7 +41,7 @@ class State:
         self.chat_id = self.get("chat_id")
 
         # reply class containing the text, parameters and a Reply class with formatted text
-        self.reply = type('reply', (object,), {})
+        self.reply = type("reply", (object,), {})
         self.reply.text = reply_text
         self.reply.parameters = reply_parameters
         self.reply.object = None
@@ -134,9 +134,11 @@ class State:
         for currency in MajesticBank.SUPPORTED_CURRENCIES:
             if currency in excluded_currencies:
                 continue
-            row.append({
-                "text": currency,
-            })
+            row.append(
+                {
+                    "text": currency,
+                }
+            )
         return row
 
     def reply_keyboard_control_row(self, back_button: bool = True):
@@ -147,12 +149,16 @@ class State:
         """
         row = []
         if back_button:
-            row.append({
-                "text": "↩ Back",
-            })
-        row.append({
-            "text": "❌ Cancel",
-        })
+            row.append(
+                {
+                    "text": "↩ Back",
+                }
+            )
+        row.append(
+            {
+                "text": "❌ Cancel",
+            }
+        )
         return row
 
     def set_next_state(self):
@@ -172,13 +178,15 @@ class State:
             self.next_state = None
 
 
-REQUEST_FROM_CURRENCY, \
-REQUEST_RECEIVE_CURRENCY, \
-REQUEST_EXCHANGE_TYPE, \
-REQUEST_AMOUNT, \
-PREVIEW_ESTIMATE, \
-REQUEST_RECEIVE_ADDRESS, \
-CREATE_ORDER = range(7)
+(
+    REQUEST_FROM_CURRENCY,
+    REQUEST_RECEIVE_CURRENCY,
+    REQUEST_EXCHANGE_TYPE,
+    REQUEST_AMOUNT,
+    PREVIEW_ESTIMATE,
+    REQUEST_RECEIVE_ADDRESS,
+    CREATE_ORDER,
+) = range(7)
 
 STATES = {}
 
@@ -186,10 +194,22 @@ PATH_ESTIMATE, PATH_TRADE = range(2)
 PATHS = {PATH_ESTIMATE: {}, PATH_TRADE: {}}
 
 # order of states to take the user through depending on the path selected
-PATHS[PATH_TRADE]["states"] = [REQUEST_FROM_CURRENCY, REQUEST_RECEIVE_CURRENCY, REQUEST_EXCHANGE_TYPE, REQUEST_AMOUNT,
-                               REQUEST_RECEIVE_ADDRESS, CREATE_ORDER]
-PATHS[PATH_ESTIMATE]["states"] = [REQUEST_FROM_CURRENCY, REQUEST_RECEIVE_CURRENCY, REQUEST_AMOUNT, PREVIEW_ESTIMATE,
-                                  REQUEST_RECEIVE_ADDRESS, CREATE_ORDER]
+PATHS[PATH_TRADE]["states"] = [
+    REQUEST_FROM_CURRENCY,
+    REQUEST_RECEIVE_CURRENCY,
+    REQUEST_EXCHANGE_TYPE,
+    REQUEST_AMOUNT,
+    REQUEST_RECEIVE_ADDRESS,
+    CREATE_ORDER,
+]
+PATHS[PATH_ESTIMATE]["states"] = [
+    REQUEST_FROM_CURRENCY,
+    REQUEST_RECEIVE_CURRENCY,
+    REQUEST_AMOUNT,
+    PREVIEW_ESTIMATE,
+    REQUEST_RECEIVE_ADDRESS,
+    CREATE_ORDER,
+]
 
 """
 Every state is its own class which inherits from the generic State class
@@ -200,22 +220,23 @@ All constructors end with setting the self.reply.object which the Conversation c
 
 class FromCurrency(State):
     def __init__(self, message: str, context: CallbackContext):
-        super().__init__(message,
-                         context,
-                         reply_text="What currency do you want to sell?",
-
-                         response_validation=MajesticBank.SUPPORTED_CURRENCIES_REGEX,
-                         response_set_key="from_currency",
-                         )
+        super().__init__(
+            message,
+            context,
+            reply_text="What currency do you want to sell?",
+            response_validation=MajesticBank.SUPPORTED_CURRENCIES_REGEX,
+            response_set_key="from_currency",
+        )
 
         self.set_next_state()
         self.reply_compile()
 
         keyboard = [
             self.reply_keyboard_currencies_row(),
-            self.reply_keyboard_control_row(back_button=False)
+            self.reply_keyboard_control_row(back_button=False),
         ]
         self.reply.object.set_reply_keyboard(keyboard)
+
 
 """
 After the state class is defined we assign it (not its instance!) to the States dict on the key corresponding to the state
@@ -225,14 +246,14 @@ STATES[REQUEST_FROM_CURRENCY] = FromCurrency
 
 class ReceiveCurrency(State):
     def __init__(self, message: str, context: CallbackContext):
-        super().__init__(message,
-                         context,
-                         reply_text="What currency do you want to buy with {}?",
-                         reply_parameters=["from_currency"],
-
-                         response_validation=MajesticBank.SUPPORTED_CURRENCIES_REGEX,
-                         response_set_key="receive_currency",
-                         )
+        super().__init__(
+            message,
+            context,
+            reply_text="What currency do you want to buy with {}?",
+            reply_parameters=["from_currency"],
+            response_validation=MajesticBank.SUPPORTED_CURRENCIES_REGEX,
+            response_set_key="receive_currency",
+        )
 
         if not self.message_valid():
             self.success = False
@@ -246,7 +267,7 @@ class ReceiveCurrency(State):
 
         keyboard = [
             self.reply_keyboard_currencies_row(["from_currency"]),
-            self.reply_keyboard_control_row()
+            self.reply_keyboard_control_row(),
         ]
         self.reply.object.set_reply_keyboard(keyboard)
 
@@ -256,15 +277,15 @@ STATES[REQUEST_RECEIVE_CURRENCY] = ReceiveCurrency
 
 class ExchangeType(State):
     def __init__(self, message: str, context: CallbackContext):
-        super().__init__(message,
-                         context,
-                         reply_text=f"Do you want to receive a specific amount of {{}}?\n\nPick {Style.i('Yes')} to "
-                                    f"select how much {{}} you want to get.\n\nPick {Style.i('No')} to select how "
-                                    f"much {{}} you want to sell.",
-                         reply_parameters=["receive_currency", "receive_currency", "from_currency"],
-
-                         response_set_key="fixed",
-                         )
+        super().__init__(
+            message,
+            context,
+            reply_text=f"Do you want to receive a specific amount of {{}}?\n\nPick {Style.i('Yes')} to "
+            f"select how much {{}} you want to get.\n\nPick {Style.i('No')} to select how "
+            f"much {{}} you want to sell.",
+            reply_parameters=["receive_currency", "receive_currency", "from_currency"],
+            response_set_key="fixed",
+        )
 
         if not self.message_valid():
             self.success = False
@@ -275,7 +296,7 @@ class ExchangeType(State):
 
         keyboard = [
             [{"text": "Yes"}, {"text": "No"}],
-            self.reply_keyboard_control_row()
+            self.reply_keyboard_control_row(),
         ]
         self.reply.object.set_reply_keyboard(keyboard)
 
@@ -285,12 +306,12 @@ STATES[REQUEST_EXCHANGE_TYPE] = ExchangeType
 
 class Amount(State):
     def __init__(self, message: str, context: CallbackContext):
-        super().__init__(message,
-                         context,
-
-                         response_validation=Decimal.REGEX,
-                         response_set_key="amount",
-                         )
+        super().__init__(
+            message,
+            context,
+            response_validation=DECIMAL_REGEX,
+            response_set_key="amount",
+        )
 
         if not self.message_valid():
             self.success = False
@@ -317,27 +338,26 @@ STATES[REQUEST_AMOUNT] = Amount
 
 class PreviewEstimate(State):
     def __init__(self, message: str, context: CallbackContext):
-        super().__init__(message,
-                         context,
-
-                         response_set_key="continue",
-                         )
+        super().__init__(
+            message,
+            context,
+            response_set_key="continue",
+        )
 
         if not self.message_valid():
             self.success = False
-        self.set("amount", Decimal(message))
+        self.set("amount", octa_deci(message))
         self.set_next_state()
 
         amount = self.get("amount")
         from_currency = self.get("from_currency")
         receive_currency = self.get("receive_currency")
 
-        self.reply.object = self.commands.calculate_order(["", amount, from_currency, receive_currency], context)
+        self.reply.object = self.commands.calculate_order(
+            ["", amount, from_currency, receive_currency], context
+        )
 
-        keyboard = [
-            [{"text": "Continue"}],
-            self.reply_keyboard_control_row()
-        ]
+        keyboard = [[{"text": "Continue"}], self.reply_keyboard_control_row()]
         self.reply.object.set_reply_keyboard(keyboard)
 
 
@@ -346,20 +366,19 @@ STATES[PREVIEW_ESTIMATE] = PreviewEstimate
 
 class ReceiveAddress(State):
     def __init__(self, message: str, context: CallbackContext):
-        super().__init__(message,
-                         context,
-
-                         reply_text="What {} address do you want to receive {} to?\n\nPaste the address or send a photo of the QR code 📸.",
-                         reply_parameters=["receive_currency", "receive_currency"],
-
-                         response_set_key="receive_address",
-                         )
+        super().__init__(
+            message,
+            context,
+            reply_text="What {} address do you want to receive {} to?\n\nPaste the address or send a photo of the QR code 📸.",
+            reply_parameters=["receive_currency", "receive_currency"],
+            response_set_key="receive_address",
+        )
 
         if not self.message_valid():
             self.success = False
 
         if self.get("path") == PATH_TRADE:
-            self.set("amount", Decimal(message))
+            self.set("amount", octa_deci(message))
 
         self.set_next_state()
         self.reply_compile()
@@ -369,7 +388,9 @@ class ReceiveAddress(State):
             amount = self.get("amount")
             from_currency = self.get("from_currency")
             receive_currency = self.get("receive_currency")
-            estimate_reply = self.commands.calculate_order(["", amount, from_currency, receive_currency], context)
+            estimate_reply = self.commands.calculate_order(
+                ["", amount, from_currency, receive_currency], context
+            )
 
         self.reply.object.append(estimate_reply)
         self.reply.object.remove_reply_keyboard()
@@ -391,7 +412,7 @@ class CreateOrder(State):
         if self.get("photo"):
             try:
                 qr = decode(self.get("photo"))
-                decoded = qr[0].data.decode('ascii')
+                decoded = qr[0].data.decode("ascii")
                 self.message = urlparse(decoded).path
             except:
                 raise PhotoDecodeRetry()
@@ -406,9 +427,13 @@ class CreateOrder(State):
         receive_address = self.get("receive_address")
 
         if fixed:
-            reply = self.commands.create_fixed(["", from_currency, amount, receive_currency, receive_address], context)
+            reply = self.commands.create_fixed(
+                ["", from_currency, amount, receive_currency, receive_address], context
+            )
         else:
-            reply = self.commands.create_order(["", amount, from_currency, receive_currency, receive_address], context)
+            reply = self.commands.create_order(
+                ["", amount, from_currency, receive_currency, receive_address], context
+            )
 
         self.reply.object = reply
 
@@ -417,7 +442,9 @@ STATES[CREATE_ORDER] = CreateOrder
 
 
 class Conversation:
-    def __init__(self, states_dict: Dict[int, State], entry_state: int, exit_state: int):
+    def __init__(
+        self, states_dict: Dict[int, State], entry_state: int, exit_state: int
+    ):
 
         self.states = states_dict
         self.entry_regex = None
@@ -456,7 +483,7 @@ class Conversation:
         :return: None
         """
         if self.entry_regex:
-            self.entry_regex = '|'.join([self.entry_regex, entry_regex])
+            self.entry_regex = "|".join([self.entry_regex, entry_regex])
         else:
             self.entry_regex = entry_regex
 
@@ -505,7 +532,14 @@ class Conversation:
         for i in range(2):
             try:
                 self.past_states.append(
-                    copy.deepcopy({"state": context.user_data["state"], "data": context.user_data, "params": params}))
+                    copy.deepcopy(
+                        {
+                            "state": context.user_data["state"],
+                            "data": context.user_data,
+                            "params": params,
+                        }
+                    )
+                )
 
                 if try_again or re.match(r"^ *↩? */?back", message, re.IGNORECASE):
                     # go back a step in the conversation. either the user pressed to go back or is forced to retry an
@@ -531,8 +565,10 @@ class Conversation:
 
                 if not state_class:
                     raise StateNotFound()
-
-                state = state_class(params[0], context)
+                try:
+                    state = state_class(params[0], context)
+                except Exception as e:
+                    traceback.print_exc()
 
                 if not state.success:
                     # if something went wrong in the init then raise here

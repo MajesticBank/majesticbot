@@ -5,8 +5,14 @@ from MajesticBank import Style
 
 
 class Command:
-    def __init__(self, command_name: str, callback, docs: dict = {}, parameter_counts: list = None,
-                 aliases: list = None):
+    def __init__(
+        self,
+        command_name: str,
+        callback,
+        docs: dict = {},
+        parameter_counts: list = None,
+        aliases: list = None,
+    ):
         self.command_name = command_name
         self.callback = callback
         self.docs = docs
@@ -24,14 +30,34 @@ class Command:
         if "description" in self.docs:
             txt += Style.i(self.docs["description"]) + "\n"
         if "usage" in self.docs:
-            txt += Style.b("Usage:") + " /" + self.command_name + Style.code(self.docs["usage"]) + "\n"
+            txt += (
+                Style.b("Usage:")
+                + " /"
+                + self.command_name
+                + Style.code(self.docs["usage"])
+                + "\n"
+            )
 
         if "examples" in self.docs:
             if isinstance(self.docs["examples"], list):
                 for example in self.docs["examples"]:
-                    txt += Style.b("Example:") + " /" + self.command_name + " " + Style.code(example) + "\n"
+                    txt += (
+                        Style.b("Example:")
+                        + " /"
+                        + self.command_name
+                        + " "
+                        + Style.code(example)
+                        + "\n"
+                    )
             elif isinstance(self.docs["examples"], str):
-                txt += Style.b("Example:") + " /" + self.command_name + " " + Style.code(self.docs["examples"]) + "\n"
+                txt += (
+                    Style.b("Example:")
+                    + " /"
+                    + self.command_name
+                    + " "
+                    + Style.code(self.docs["examples"])
+                    + "\n"
+                )
 
         txt += "\n"
         return txt

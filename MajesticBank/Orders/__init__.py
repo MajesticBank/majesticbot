@@ -7,6 +7,7 @@ This design isn't very good, but it works well enough for the current use-case.
 import logging
 import os
 import sqlite3 as sl
+import sqlalchemy as sa
 import time
 
 from telegram import Bot
@@ -15,7 +16,9 @@ import MajesticBank
 from MajesticBank import MajesticBankAPI, Style
 from MajesticBank.SignalCatcher import MajesticBankSignalCatcher
 
+DB_NAME_ALCHEMY = "sqlite:///orders.db"
 DB_NAME = "orders.db"
+
 
 class MajesticBankOrders:
     def __init__(self, start_updater: bool = True):
@@ -24,35 +27,48 @@ class MajesticBankOrders:
          instance initiated with this being true!
         """
 
+        self.engine = sa.create_engine(
+            DB_NAME_ALCHEMY, connect_args={"check_same_thread": False}
+        )
+        self.con = self.engine.connect()
+
+        meta = sa.MetaData(bind=self.con)
+
         if start_updater:
-            q = """CREATE TABLE IF NOT EXISTS statuses (
-            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, 
-            chat_id BIGINT NOT NULL,
-            trx VARCHAR(64) NOT NULL,
-            time_created DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, 
-            time_modified DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, 
-            status TEXT NULL);"""
-            self.__execute(q)
+            self.statuses = sa.Table(
+                "statuses",
+                meta,
+                sa.Column(
+                    "id",
+                    sa.Integer,
+                    primary_key=True,
+                    autoincrement=True,
+                    nullable=False,
+                ),
+                sa.Column("chat_id", sa.BIGINT, nullable=False),
+                sa.Column("trx", sa.VARCHAR(64), nullable=False),
+                sa.Column(
+                    "time_created",
+                    sa.DateTime,
+                    nullable=False,
+                    server_default=sa.func.now(),
+                ),
+                sa.Column(
+                    "time_modified",
+                    sa.DateTime,
+                    nullable=False,
+                    server_default=sa.func.now(),
+                ),
+                sa.Column("status", sa.Text, nullable=True),
+            )
+            meta.create_all(self.engine)
+        else:
+            sa.MetaData.reflect(meta)
+            self.statuses = meta.tables["statuses"]
 
         self.API = MajesticBankAPI()
         if start_updater and os.fork() == 0:
             self.updater()
-
-    def __cursor_fetch_all(self, query, parameters=None):
-        con = sl.connect(DB_NAME, check_same_thread=False)
-        con.row_factory = sl.Row
-
-        cursor = con.cursor()
-        if parameters:
-            out = cursor.execute(query, parameters)
-        else:
-            out = cursor.execute(query)
-
-        out = out.fetchall()
-        con.commit()
-        con.close()
-
-        return out
 
     def __execute(self, query, parameters=None):
         con = sl.connect(DB_NAME, check_same_thread=False)
@@ -71,12 +87,15 @@ class MajesticBankOrders:
             # new_row["status"] = "Just created"  # todo comment out in PROD
             new_row["status"] = "Waiting for funds"
 
-        q = f"""INSERT INTO statuses (chat_id, trx, status) VALUES (?,?,?);"""
-        self.__execute(q, [new_row['chat_id'], new_row['trx'], new_row['status']])
+        insert = sa.insert(self.statuses).values(
+            chat_id=new_row["chat_id"], trx=new_row["trx"], status=new_row["status"]
+        )
+        self.con.execute(insert)
 
     def select(self, chat_id):
-        q = f"""SELECT * FROM statuses WHERE chat_id={chat_id};"""
-        return self.__cursor_fetch_all(q)
+        q = self.statuses.select().where(self.statuses.c.chat_id == chat_id)
+
+        return self.con.execute(q).fetchall()
 
     def updater(self):
 
@@ -97,8 +116,14 @@ class MajesticBankOrders:
                     # statuses we know about: Not found, Waiting for funds, Completed
 
                     # only pick the non completed to update
-                    q = """SELECT * FROM statuses WHERE status!='Completed' AND time_modified >= datetime('now', '-1 hours');"""
-                    rows = self.__cursor_fetch_all(q)
+                    q = self.statuses.select().where(
+                        sa.and_(
+                            self.statuses.c.status != "Completed",
+                            self.statuses.c.time_modified
+                            >= sa.func.datetime("now", "-1 hours"),
+                        )
+                    )
+                    rows = self.con.execute(q).fetchall()
 
                     statuses_updated_count = 0
 
@@ -112,24 +137,45 @@ class MajesticBankOrders:
                         # logger.info(f"Data received: {data}")
 
                         if row["status"] != data["status"]:
-                            q = """UPDATE statuses SET status=?,time_modified=datetime('now') WHERE chat_id=?"""
-                            self.__execute(q, [data["status"], row["chat_id"]])
+
+                            q = (
+                                self.statuses.update()
+                                .where(self.statuses.c.chat_id == row["chat_id"])
+                                .values(
+                                    status=data["status"],
+                                    time_modified=sa.func.datetime("now"),
+                                )
+                            )
+
+                            self.con.execute(q)
+
                             statuses_updated_count += 1
 
                             if data["status"] != "Not found":
                                 reply = Style.b("🚨 STATUS CHANGE 🚨") + "\n\n"
-                                reply += "Order " + Style.code("#" + row["trx"]) + " status changed.\n\n"
+                                reply += (
+                                    "Order "
+                                    + Style.code("#" + row["trx"])
+                                    + " status changed.\n\n"
+                                )
                                 reply += Style.b(data["status"]) + "\n\n"
                                 reply += "For more details type:\n"
                                 reply += "/track " + Style.code("#" + row["trx"])
                                 bot = Bot(MajesticBank.API_KEY)
-                                bot.send_message(row["chat_id"], reply, parse_mode='HTML')
+                                bot.send_message(
+                                    row["chat_id"], reply, parse_mode="HTML"
+                                )
 
-                    q = """DELETE FROM statuses WHERE status='Not found';"""
-                    self.__execute(q)
+                    q = self.statuses.delete().where(
+                        self.statuses.c.status == "Not found"
+                    )
+                    self.con.execute(q)
 
-                    q = """DELETE FROM statuses WHERE time_created <= datetime('now', '-2 weeks');"""
-                    self.__execute(q)
+                    q = self.statuses.delete().where(
+                        self.statuses.c.time_created
+                        <= sa.func.datetime("now", "-2 weeks")
+                    )
+                    self.con.execute(q)
 
                     if statuses_updated_count > 0:
                         logger.info(f"Updated {statuses_updated_count} status(es)")

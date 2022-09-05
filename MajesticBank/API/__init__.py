@@ -5,7 +5,8 @@ import logging
 
 import requests
 
-from MajesticBank.Decimal import Decimal
+from MajesticBank.Decimal import octa_deci
+from decimal import Decimal
 
 
 class MajesticBankAPI:
@@ -31,6 +32,7 @@ class MajesticBankAPI:
         """
         response = requests.get(url, params=payload)
         if response.ok:
+            # print(response.text)
             return self.__broadcast(response.json())
         else:
             logger = logging.getLogger(__name__)
@@ -39,14 +41,14 @@ class MajesticBankAPI:
 
     def __broadcast(self, response: dict) -> dict:
 
-        # fields to be broadcast into Decimal()
+        # fields to be broadcast into Decimal
         decimal_fields = ["from_amount", "receive_amount", "min", "max"]
         # fields to be broadcast into int
         int_fields = ["received", "confirmed"]
 
         for field in decimal_fields:
             if field in response:
-                response[field] = Decimal(response[field])
+                response[field] = octa_deci(response[field])
 
         for field in int_fields:
             if field in response:
@@ -70,15 +72,18 @@ class MajesticBankAPI:
         """
         endpoint = self.__api_full_path("limits")
 
-        payload = {
-            "from_currency": from_currency
-        }
+        payload = {"from_currency": from_currency}
 
         response = self.__call(endpoint, payload)
         return response
 
-    def calculate_order(self, from_currency: str, receive_currency: str, from_amount: Decimal = None,
-                        receive_amount: Decimal = None):
+    def calculate_order(
+        self,
+        from_currency: str,
+        receive_currency: str,
+        from_amount: Decimal = None,
+        receive_amount: Decimal = None,
+    ):
         """
         Native API method
         :return: API response converted to a dict
@@ -97,8 +102,14 @@ class MajesticBankAPI:
         response = self.__call(endpoint, payload)
         return response
 
-    def create_order(self, from_amount: Decimal, from_currency: str, receive_currency: str,
-                     receive_address: str, referral_code: str) -> dict:
+    def create_order(
+        self,
+        from_amount: Decimal,
+        from_currency: str,
+        receive_currency: str,
+        receive_address: str,
+        referral_code: str,
+    ) -> dict:
         """
         Native API method
         :return: API response converted to a dict
@@ -110,14 +121,21 @@ class MajesticBankAPI:
             "from_currency": from_currency,
             "receive_currency": receive_currency,
             "receive_address": receive_address,
-            "referral_code": referral_code
+            "referral_code": referral_code,
         }
 
         response = self.__call(endpoint, payload)
         return response
 
-    def create_fixed(self, from_currency: str, receive_currency: str, receive_address: str, referral_code: str,
-                     from_amount: Decimal = None, receive_amount: Decimal = None) -> dict:
+    def create_fixed(
+        self,
+        from_currency: str,
+        receive_currency: str,
+        receive_address: str,
+        referral_code: str,
+        from_amount: Decimal = None,
+        receive_amount: Decimal = None,
+    ) -> dict:
         """
         Native API method
         :return: API response converted to a dict
@@ -128,7 +146,7 @@ class MajesticBankAPI:
             "from_currency": from_currency,
             "receive_currency": receive_currency,
             "receive_address": receive_address,
-            "referral_code": referral_code
+            "referral_code": referral_code,
         }
 
         if from_amount:
