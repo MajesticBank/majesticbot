@@ -12,6 +12,11 @@ Run with:
 python3.10 server.py
 ```
 
+Ubuntu users may encounter an error ```Unable to find zbar shared library``` This is solved by ```sudo apt-get install zbar-tools```
+
+
+
+
 Caution! Do **NOT** run more than instance at once!
 
 
