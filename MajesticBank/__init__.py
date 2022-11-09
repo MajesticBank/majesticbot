@@ -23,7 +23,7 @@ from MajesticBank.Reply import Reply
 API_KEY = "5212679859:AAFaxTSKUx7itdl2jYr7jeuZNvNHjDhOKQQ"  # MajesticBank_BOT
 
 DEFAULT_REFERRAL_CODE = "mgzySX"
-SUPPORTED_CURRENCIES = ["BTC", "LTC", "XMR"]
+SUPPORTED_CURRENCIES = ["BTC", "LTC", "WOW", "XMR"]
 SUPPORTED_CURRENCIES_REGEX = re.compile(
     f"^({'|'.join(SUPPORTED_CURRENCIES)})$", re.IGNORECASE
 )
