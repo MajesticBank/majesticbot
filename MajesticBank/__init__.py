@@ -91,6 +91,8 @@ class Commands:
             url = "bitcoin:"
         elif currency == "LTC":
             url = "litecoin:"
+        elif currency == "WOW":
+            url = "wownero:
         elif currency == "XMR":
             url = "monero:"
         else:
